@@ -12,6 +12,7 @@ void setup() {
 
 void loop() {
   valorumidade = analogRead(umidadeAnalogica); // Leitura analógica
+  valorumidade = constrain(valorumidade, 315, 1023); // Limita o valor dentro do intervalo esperado
   valorumidade = map(valorumidade, 1023, 315, 0, 100); // Converte para escala de 0 a 100
 
   Serial.print("Umidade encontrada: ");
