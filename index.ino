@@ -1,3 +1,22 @@
+#include <Servo.h>
+
+// Elian includes
+#define PINO_SERVO 3
+#define PINO_BUZZER 5
+#define LIMITE_INFERIOR 23
+#define LIMITE_SUPERIOR 60
+
+Servo servo;
+
+int humidade = 0;
+int posicao_servo = 0;
+int velocidade_servo = 1;
+int tempo_servo = velocidade_servo*10;
+int intervalo_beep = (2000)/tempo_servo;  // para alterar o intervalo entre cada beep, altere apenas o valor entre parenteses
+int contador_beep = intervalo_beep;
+
+
+// Mateus includes
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
@@ -21,15 +40,62 @@ const unsigned char PROGMEM termoIcon[] = {
 };
 
 void setup() {
+  servo.attach(PINO_SERVO);
+  servo.write(posicao_servo);
+  Serial.begin(9600);
   Serial.begin(9600);
   if (!OLED.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("Erro ao iniciar o display OLED"));
     while (true)
       ;
   }
-
   OLED.clearDisplay();
 }
+
+void loop() {
+  // Elian Servo + buzzer
+  if (humidade < LIMITE_INFERIOR){
+    // ativa o buzzer no com intervalo definido
+    if (contador_beep == intervalo_beep){
+      tone(PINO_BUZZER , 440, 500);
+      contador_beep = 0;
+    }
+    contador_beep++;
+
+    // coloca o motor na posicao de 90 graus
+    while(posicao_servo < 90){
+      posicao_servo = posicao_servo + velocidade_servo;
+      servo.write(posicao_servo);
+      delay(tempo_servo);
+    }
+
+  }else if(humidade > LIMITE_SUPERIOR){
+    //coloca o motor na posicao de 0 graus
+    while(posicao_servo > 0){
+      posicao_servo = posicao_servo - velocidade_servo;
+      servo.write(posicao_servo);
+      delay(tempo_servo);
+    }
+  }
+
+  // Display Mateus
+  Serial.print("humidade: ");
+  Serial.println(humidade);
+
+  float umidade = 13;
+  float temperatura = 25;
+
+  OLED.clearDisplay();
+  OLED.setTextColor(SSD1306_WHITE);
+
+  exibirUmidade(umidade);
+  exibirTemperatura(temperatura);
+
+  OLED.display();
+  delay(1000);
+
+}
+
 // Função para exibir umidade com ícone
 void exibirUmidade(float valor) {
   OLED.drawBitmap(0, 0, waterIcon, 16, 16, SSD1306_WHITE);
@@ -48,18 +114,4 @@ void exibirTemperatura(float valor) {
   OLED.print("Temp: ");
   OLED.print(valor);
   OLED.println(" C");
-}
-
-void loop() {
-  float umidade = 13;
-  float temperatura = 25;
-
-  OLED.clearDisplay();
-  OLED.setTextColor(SSD1306_WHITE);
-
-  exibirUmidade(umidade);
-  exibirTemperatura(temperatura);
-
-  OLED.display();
-  delay(1000);
 }
