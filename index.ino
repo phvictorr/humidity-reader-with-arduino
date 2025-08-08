@@ -1,114 +1,159 @@
-#define umidadeAnalogica A0 //Atribui o pino A0 à variável umidade - leitura analógica do sensor
-#define umidadeDigital 4 //Atribui o pino 13 à variável umidadeDigital - leitura digital do sensor
 #include <ESP8266WiFi.h>
+#include <Servo.h>
 
-int valorumidade; // Variável que armazenará o valor da umidade lida - saída analógica
-int valorumidadeDigital; // Variável que armazenará a saída digital do sensor de umidade do solo
+// ===== DEFINIÇÕES DE PINOS =====
+// Sensor de umidade do solo
+#define UMIDADE_ANALOGICA A0    // Pino A0 para leitura analógica do sensor de umidade
+#define UMIDADE_DIGITAL 4       // Pino 4 para leitura digital do sensor de umidade
 
-// Definição dos pinos
-const int ldrPin = A0;       // Pino do LDR
-const int redPin = 1;       // Pino LED Vermelho
-const int greenPin = 12;     // Pino LED Verde
-const int bluePin = 14;      // Pino LED Azul
-const int buzzerPin = D8;    // Pino do buzzer 
+// LED RGB
+const int redPin = 1;           // Pino LED Vermelho
+const int greenPin = 12;        // Pino LED Verde  
+const int bluePin = 14;         // Pino LED Azul
 
-// Variáveis
-int ldrValue = 0;           // Valor lido do LDR
-int ldrMin = 1024;          // Valor mínimo do LDR (ajustar conforme necessário)
-int ldrMax = 0;             // Valor máximo do LDR (ajustar conforme necessário)
-int valorldr = 0;//Declara a variável valorldr como inteiro
+// Buzzer e Servo
+const int buzzerPin = 5;        // Pino do buzzer (corrigido conflito)
+const int servoPin = 3;         // Pino do servo motor
+
+// ===== CONSTANTES =====
+#define LIMITE_INFERIOR 23
+#define LIMITE_SUPERIOR 60
+
+// ===== VARIÁVEIS GLOBAIS =====
+// Sensor de umidade
+int valorUmidade;               // Valor da umidade lida (analógica)
+int valorUmidadeDigital;        // Valor digital do sensor de umidade
+
+// Sensor LDR
+int ldrValue = 0;               // Valor lido do LDR
+int ldrMin = 1024;              // Valor mínimo do LDR
+int ldrMax = 0;                 // Valor máximo do LDR
+
+// Servo motor
+Servo servo;
+int posicaoServo = 0;
+int velocidadeServo = 1;
+int tempoServo = velocidadeServo * 10;
+
+// Buzzer
+int intervaloBeeep = (2000) / tempoServo;
+int contadorBeep = intervaloBeeep;
 
 void setup() {
-  // Elian sensor umidade
-  Serial.begin(9600); // Inicia a comunicação serial
-  pinMode(umidadeAnalogica, INPUT); // Define umidadeAnalogica como entrada
-  pinMode(umidadeDigital, INPUT); // Define umidadeDigital como entrada
-
-  // Diego
-  Serial.begin(19200);
+  // Inicializa comunicação serial
+  Serial.begin(9600);
   
-  // Configura os pinos do LED RGB como saída
+  // Configura pinos do sensor de umidade
+  pinMode(UMIDADE_ANALOGICA, INPUT);
+  pinMode(UMIDADE_DIGITAL, INPUT);
+  
+  // Configura pinos do LED RGB
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(bluePin, OUTPUT);
+  
+  // Configura buzzer
   pinMode(buzzerPin, OUTPUT);
-  pinMode(ldrPin, INPUT);
-
-
-  // Inicia com o LED desligado
+  
+  // Inicializa servo motor
+  servo.attach(servoPin);
+  servo.write(posicaoServo);
+  
+  // Inicia com LED desligado
   setColor(0, 0, 0);
-  //Dados
+  
+  Serial.println("Sistema iniciado!");
 }
 
 void loop() {
-  valorumidade = analogRead(umidadeAnalogica); // Leitura analógica
-  valorumidade = constrain(valorumidade, 315, 1023); // Limita o valor dentro do intervalo esperado
-  valorumidade = map(valorumidade, 1023, 315, 0, 100); // Converte para escala de 0 a 100
-
+  // ===== LEITURA DO SENSOR DE UMIDADE =====
+  valorUmidade = analogRead(UMIDADE_ANALOGICA);
+  valorUmidade = constrain(valorUmidade, 315, 1023);
+  valorUmidade = map(valorUmidade, 1023, 315, 0, 100);
+  
   Serial.print("Umidade encontrada: ");
-  Serial.print(valorumidade);
+  Serial.print(valorUmidade);
   Serial.println(" %");
-
-  valorumidadeDigital = digitalRead(umidadeDigital); // Leitura digital
-
-  if (valorumidadeDigital == 0) {
+  
+  valorUmidadeDigital = digitalRead(UMIDADE_DIGITAL);
+  
+  if (valorUmidadeDigital == 0) {
     Serial.println("Status: Solo úmido");
-    // digitalWrite(LedVermelho, LOW);
-    // digitalWrite(LedVerde, HIGH);
   } else {
     Serial.println("Status: Solo seco");
-    // digitalWrite(LedVermelho, HIGH);
-    // digitalWrite(LedVerde, LOW);
   }
-
-  delay(500); // Atraso de 500ms
-
-  // DIEGO
-
-  delay(500);
-  Serial.println("123");
-  ldrValue = analogRead(ldrPin);
-
   
-  // Lógica de controle do LED RGB
-  if (ldrValue <= 500) { // Noite (escuro)
-    setColor(100, 200,255); // Laranja
+  // ===== LEITURA DO SENSOR LDR =====
+  ldrValue = analogRead(A0);  // Usando A0 compartilhado (pode ser alternado)
+  
+  Serial.print("Valor lido pelo LDR = ");
+  Serial.println(ldrValue);
+  
+  // ===== CONTROLE DO LED RGB BASEADO NA LUMINOSIDADE =====
+  if (ldrValue <= 500) {
+    // Noite (escuro) - Azul claro
+    setColor(100, 200, 255);
     noTone(buzzerPin);
   } 
-  else if (ldrValue >= 950) { // Luminosidade intensa (máxima)
-    setColor(0, 255,255); // Vermelho
-    tone(buzzerPin, 1000); // Emite tom de 1kHz
-    delay(500); // Espera 0.5s
-    setColor(255, 255,255);
-    delay(500); // Espera 0.5s
+  else if (ldrValue >= 950) {
+    // Luminosidade intensa - Vermelho piscante
+    setColor(255, 0, 0);
+    tone(buzzerPin, 1000);
+    delay(500);
+    setColor(0, 0, 0);
+    delay(500);
   } 
-    else if (ldrValue >= 501 <= 950) { // Luminosidade intensa (media)
-    setColor(0,125,0); // branco
-    tone(buzzerPin, 1000); // Emite tom de 1kHz
-    
-  } 
+  else {
+    // Luminosidade média - Verde
+    setColor(0, 255, 0);
+    noTone(buzzerPin);
+  }
   
-  delay(100); // Pequena pausa entre leituras
-
-   valorldr=analogRead(ldrPin);//Lê o valor do sensor ldr e armazena na variável valorldr
-   Serial.print("Valor lido pelo LDR = ");//Imprime na serial a mensagem Valor lido pelo LDR
-   Serial.println(valorldr);//Imprime na serial os dados de valorldr
+  // ===== CONTROLE DO SERVO BASEADO NA UMIDADE =====
+  if (valorUmidade < LIMITE_INFERIOR) {
+    // Solo muito seco - ativa buzzer e move servo para 90°
+    if (contadorBeep >= intervaloBeeep) {
+      tone(buzzerPin, 440, 500);
+      contadorBeep = 0;
+    }
+    contadorBeep++;
+    
+    // Move servo para 90 graus
+    while (posicaoServo < 90) {
+      posicaoServo += velocidadeServo;
+      servo.write(posicaoServo);
+      delay(tempoServo);
+    }
+  } 
+  else if (valorUmidade > LIMITE_SUPERIOR) {
+    // Solo muito úmido - move servo para 0°
+    while (posicaoServo > 0) {
+      posicaoServo -= velocidadeServo;
+      servo.write(posicaoServo);
+      delay(tempoServo);
+    }
+  }
+  
+  Serial.print("Posição do servo: ");
+  Serial.println(posicaoServo);
+  Serial.println("-------------------");
+  
+  delay(500);
 }
 
-// Função para definir a cor do LED RGB
+// ===== FUNÇÕES AUXILIARES =====
 void setColor(int red, int green, int blue) {
   analogWrite(redPin, red);
   analogWrite(greenPin, green);
   analogWrite(bluePin, blue);
 }
 
-// Função para calibrar os valores mínimo e máximo do LDR (opcional)
 void calibrateLDR() {
   Serial.println("Calibrando LDR...");
   Serial.println("Exponha o LDR a diferentes condições de luz");
   
   for (int i = 0; i < 100; i++) {
-    ldrValue = analogRead(ldrPin);
+    ldrValue = analogRead(A0);
     
     if (ldrValue < ldrMin) {
       ldrMin = ldrValue;
@@ -121,5 +166,8 @@ void calibrateLDR() {
     delay(10);
   }
   
- 
+  Serial.print("LDR Min: ");
+  Serial.println(ldrMin);
+  Serial.print("LDR Max: ");
+  Serial.println(ldrMax);
 }
